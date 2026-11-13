@@ -2,6 +2,12 @@
 
 独立中文桌面应用，使用 PySide6。支持 DeepSeek / OpenAI 兼容 HTTPS API、多轮聊天、独立背景提示词、附件、加密本地账户和手动 TXT/Markdown 导出。
 
+已生成 Windows x64 便携版，并通过 Windows 自动测试及打包EXE启动自检：
+
+[下载 ChatDesk 0.2 Windows 便携包](https://github.com/yourwjd123/chatdesk-windows/actions/runs/43380825441/artifacts/14015999741)（约63 MiB，可能需要登录GitHub，构建产物保留14天）。
+
+下载后将整个ZIP解压到自己选择的非系统盘文件夹，保留 `_internal` 等依赖目录，双击 `ChatDesk.exe`；无需安装Python。目标为 Windows 10/11 x64，自动验证环境为 Windows Server 2025 x64。
+
 ## 启动与便携版
 
 1. 将整个源码文件夹解压到自己选择的**非系统盘本地目录**，例如 `D:\Apps\ChatDesk`。

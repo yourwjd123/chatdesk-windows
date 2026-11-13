@@ -1,6 +1,8 @@
 # 0.2 验证记录
 
-日期：2026-11-13。环境：Linux / Python / PySide6 6.8.3，Qt offscreen。
+日期：2026-11-13。本地环境：Linux / Python / PySide6 6.8.3，Qt offscreen。
+
+Windows自动验证已完成：[运行记录](https://github.com/yourwjd123/chatdesk-windows/actions/runs/43380825441)。Windows Server 2025 x64 / Python 3.12：18项测试全部通过；onedir打包成功；打包后的ChatDesk.exe账户加密与窗口启动自检通过。未调用真实API。
 
 本地验证包含：
 
@@ -17,7 +19,7 @@
 - 模拟API线程完整完成、响应密钥脱敏及线程对象清理。
 - 界面截图检查，无真实用户数据。
 
-Windows专属系统盘拒绝检查在Linux跳过；仓库Windows流程将在Windows执行该检查，并运行同一套测试、构建onedir便携包，并以 `--self-test` 验证打包程序能创建加密账户、显示Qt窗口并重新解密。**流程文件存在不代表构建已经成功**，请以Actions实际运行结果为准。
+Windows专属系统盘拒绝检查在Linux跳过，已在上述Windows流程中通过。Windows流程运行同一套测试、构建onedir便携包，并以 `--self-test` 验证打包程序能创建加密账户、显示Qt窗口并重新解密。后续版本请以对应Actions实际运行结果为准。
 
 没有调用真实DeepSeek或其他API，不消耗真实额度。视觉请求使用模拟字节进行协议测试；实际服务支持取决于模型。
 
