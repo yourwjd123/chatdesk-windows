@@ -76,6 +76,13 @@ class StorageTests(unittest.TestCase):
         self.assertNotEqual(restored.blob_path(aid).read_bytes(),self.user.blob_path(aid).read_bytes())
         self.assertNotIn(b'private attachment',path.read_bytes())
 
+    def test_v02_backup_without_project_field(self):
+        self.user.state.pop('projects',None)
+        path=self.root/'legacy.cdbak'; self.user.backup(path,'backup password long')
+        restored=self.accounts.restore(path,'backup password long','Restored old',self.password)
+        self.assertEqual(restored.state['projects'],[])
+        restored.close()
+
     def test_attachment_deletion_clears_all_references(self):
         aid=self.user.add_attachment(self.text_file()); s=default_session()
         s['messages']=[dict(role='user',content='q',attachments=[aid])]; s['disabled_attachments']=[aid]

@@ -1,4 +1,4 @@
-"""ChatDesk 0.2: encrypted multi-user Qt desktop client."""
+"""ChatDesk 0.3: encrypted multi-user Qt desktop client."""
 import os
 import sys
 sys.dont_write_bytecode=True
@@ -49,7 +49,7 @@ def button(text,fn,layout):
 class Login(QDialog):
     def __init__(self,accounts):
         super().__init__(); self.accounts=accounts; self.user=None
-        self.setWindowTitle('ChatDesk 0.2 · 本地用户'); self.resize(480,320)
+        self.setWindowTitle('ChatDesk 0.3 · 本地用户'); self.resize(480,320)
         layout=QVBoxLayout(self)
         layout.addWidget(QLabel('选择用户并解锁。每个用户的数据和附件独立加密保存。'))
         self.names=QComboBox(); layout.addWidget(self.names); self.refresh()
@@ -320,6 +320,7 @@ class MainWindow(QMainWindow):
     def __init__(self,user):
         super().__init__(); self.user=user; self.current=None; self.draft=[]; self.worker=None
         self.busy=False; self.pending_lock=False; self.exit_app=False; self.last_activity=time.monotonic()
+        self.render_timer=QTimer(self); self.render_timer.setSingleShot(True); self.render_timer.timeout.connect(self.render)
         self.resize(1180,850); self.setMinimumSize(1000,700); self.update_title()
         outer=QWidget(); self.setCentralWidget(outer); layout=QVBoxLayout(outer)
         toolbar=QHBoxLayout(); layout.addLayout(toolbar)
@@ -362,7 +363,7 @@ class MainWindow(QMainWindow):
             self.last_activity=time.monotonic()
         return super().eventFilter(obj,event)
     def update_title(self):
-        self.setWindowTitle('ChatDesk 0.2 · '+self.user.name)
+        self.setWindowTitle('ChatDesk 0.3 · '+self.user.name)
         if hasattr(self,'identity'): self.identity.setText(self.user.name)
     def check_idle(self):
         if not self.pending_lock and time.monotonic()-self.last_activity>=self.user.state['idle_minutes']*60: self.lock()
@@ -412,6 +413,7 @@ class MainWindow(QMainWindow):
         for m in self.current['messages']:
             title='你' if m['role']=='user' else '助手'
             if m.get('status','complete')!='complete': title+='（未完成）'
+            if m.get('excluded'): title+='（已排除上下文）'
             chunks.append('## '+title+'\n\n'+self.user.redact(m['content']))
             for aid in m.get('attachments',[]): chunks.append('\n附件：'+self.user.redact(self.user.state['attachments'].get(aid,{}).get('name','已删除')))
         self.chat.setMarkdown('\n\n---\n\n'.join(chunks)); self.chat.verticalScrollBar().setValue(self.chat.verticalScrollBar().maximum())
@@ -526,8 +528,9 @@ class MainWindow(QMainWindow):
         self.worker.start(); self.status.setText('生成中 · 停止最迟约30秒生效。')
     def on_chunk(self,text):
         self.current['messages'][-1]['content']+=text
-        if not self.pending_lock: self.render()
+        if not self.pending_lock and not self.render_timer.isActive(): self.render_timer.start(80)
     def on_result(self,result):
+        self.render_timer.stop()
         message=self.current['messages'][-1]; message['content']=self.user.redact(message['content'])
         message['status']='complete' if result=='done' and message['content'] else 'incomplete'
         self.persist()
@@ -565,7 +568,7 @@ class MainWindow(QMainWindow):
         if not self.pending_lock:
             if not self.save_current(): event.ignore(); return
             self.exit_app=True
-        self.timer.stop(); QApplication.instance().removeEventFilter(self)
+        self.timer.stop(); self.render_timer.stop(); QApplication.instance().removeEventFilter(self)
         for dialog in self.findChildren(QDialog): dialog.reject()
         for edit in self.findChildren(QLineEdit): edit.clear()
         self.chat.clear(); self.input.clear(); self.prompt.clear(); self.chat.picture=QPixmap(); self.current=None; self.draft=[]
@@ -593,7 +596,8 @@ def main():
             test_accounts=Accounts(test_root)
             test_user=test_accounts.create('Build verification','build verification password')
             test_uid=test_user.uid
-            window=MainWindow(test_user); window.show(); app.processEvents()
+            from workshop import NovelWindow
+            window=NovelWindow(test_user); window.show(); app.processEvents()
             assert not window.grab().isNull()
             window.close(); app.processEvents()
             reopened=test_accounts.unlock(test_uid,'build verification password'); reopened.close()
@@ -612,7 +616,8 @@ def main():
             login=Login(accounts)
             if login.exec()!=QDialog.DialogCode.Accepted: break
             user=login.user; login.user=None; login.password.clear(); login.deleteLater()
-            window=MainWindow(user); loop=QEventLoop(); window.finished.connect(loop.quit); window.show(); loop.exec()
+            from workshop import NovelWindow
+            window=NovelWindow(user); loop=QEventLoop(); window.finished.connect(loop.quit); window.show(); loop.exec()
             exit_app=window.exit_app; window.deleteLater(); app.processEvents()
             if exit_app: break
     finally: lock.unlock()

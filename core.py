@@ -44,7 +44,8 @@ def messages_for(session,attachments=None,read_blob=None,vision=False):
     system=session['system']
     if session['chars']: system+='\n期望本次回答不超过%s个字符，请保持完整、简洁。'%session['chars']
     system+={'严格':'\n严格遵循任务约束；信息不足时明确说明，不自行补充事实。','平衡':'','自由':'\n在满足任务要求的前提下，可以提出多种创意和视角。'}[session['style']]
-    history=[m for m in session['messages'] if m.get('status','complete')=='complete'][-(session['rounds']*2+1):]
+    if session.get('context_bundle'): system+='\n\n'+session['context_bundle']
+    history=[m for m in session['messages'] if m.get('status','complete')=='complete' and not m.get('excluded',False)][-(session['rounds']*2+1):]
     while history and history[0]['role']!='user': history.pop(0)
     result=[dict(role='system',content=system)]
     for m in history:
@@ -113,6 +114,7 @@ def export_text(session,attachments,answer_only=False,markdown=False,include_sys
     for m in session['messages']:
         label='用户' if m['role']=='user' else '助手'
         if m.get('status','complete')!='complete': label+='（未完成）'
+        if m.get('excluded'): label+='（已排除上下文）'
         content=m['content']
         for aid in m.get('attachments',[]):
             content+='\n[附件：'+attachments.get(aid,{}).get('name','已删除')+']'

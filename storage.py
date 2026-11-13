@@ -164,6 +164,7 @@ class Accounts:
         restored = self.create(name,password)
         try:
             restored.state = state
+            restored.state.setdefault('projects',[])
             for aid,raw in data.items(): restored.write_blob(aid,raw)
             restored.save()
             return restored
@@ -178,6 +179,7 @@ class User:
         self.accounts, self.uid, self.key, self.state = accounts, uid, key, state
         self.folder = accounts.folder(uid)
         self.closed = False
+        self.state.setdefault('projects',[])
 
     @property
     def name(self):
@@ -234,7 +236,7 @@ class User:
         meta = self.state['attachments'].pop(aid)
         old = copy.deepcopy(self.state['sessions'])
         for s in self.state['sessions']:
-            for m in s['messages']:
+            for m in s['messages']+[d['message'] for d in s.get('deleted',[])]:
                 m['attachments'] = [a for a in m.get('attachments',[]) if a!=aid]
             s['disabled_attachments'] = [a for a in s.get('disabled_attachments',[]) if a!=aid]
             s['draft_attachments'] = [a for a in s.get('draft_attachments',[]) if a!=aid]

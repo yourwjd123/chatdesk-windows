@@ -1,10 +1,13 @@
-name: Windows verification and portable build
+name: Windows verification and release
 on:
   push:
     branches: [main]
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
+concurrency:
+  group: windows-release
+  cancel-in-progress: true
 jobs:
   windows:
     runs-on: windows-latest
@@ -22,7 +25,7 @@ jobs:
       - name: Build in non-system workspace
         shell: pwsh
         run: ./windows.ps1 -Mode Build
-      - name: Test accounts, attachments and Qt UI
+      - name: Test accounts, novel canon and Qt UI
         shell: pwsh
         run: |
           $runtimePath = Join-Path $env:GITHUB_WORKSPACE 'runtime'
@@ -31,15 +34,28 @@ jobs:
           $env:XDG_CACHE_HOME = Join-Path $runtimePath 'cache'
           & ./.venv/Scripts/python.exe -B -m unittest discover -v
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Smoke test packaged executable
+      - name: Smoke test packaged novel workspace
         shell: pwsh
         run: |
           $process = Start-Process -FilePath './dist/ChatDesk/ChatDesk.exe' -ArgumentList '--self-test' -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw 'Packaged application self-test failed.' }
-      - name: Upload portable Windows folder
-        uses: actions/upload-artifact@v4
-        with:
-          name: ChatDesk-0.2-Windows-portable
-          path: dist/ChatDesk/
-          if-no-files-found: error
-          retention-days: 14
+      - name: Package portable folder
+        shell: pwsh
+        run: |
+          Copy-Item README.md ./dist/ChatDesk/README.zh-CN.md
+          Copy-Item VALIDATION.md ./dist/ChatDesk/VALIDATION.md
+          Compress-Archive -Path ./dist/ChatDesk/* -DestinationPath ./runtime/Mozhou-0.3.0-Windows-x64.zip -Force
+          Get-FileHash ./runtime/Mozhou-0.3.0-Windows-x64.zip -Algorithm SHA256
+      - name: Publish verified release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = 'v0.3.0'
+          gh release view $version --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $version ./runtime/Mozhou-0.3.0-Windows-x64.zip --repo $env:GITHUB_REPOSITORY --clobber
+          } else {
+            gh release create $version ./runtime/Mozhou-0.3.0-Windows-x64.zip --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'Mozhou Novel Studio 0.3.0' --notes-file RELEASE_NOTES.md --prerelease
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
