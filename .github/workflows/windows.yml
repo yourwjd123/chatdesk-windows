@@ -1,0 +1,45 @@
+name: Windows verification and portable build
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PIP_NO_CACHE_DIR: '1'
+      PIP_DISABLE_PIP_VERSION_CHECK: '1'
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build in non-system workspace
+        shell: pwsh
+        run: ./windows.ps1 -Mode Build
+      - name: Test accounts, attachments and Qt UI
+        shell: pwsh
+        run: |
+          $runtimePath = Join-Path $env:GITHUB_WORKSPACE 'runtime'
+          $env:TEMP = $runtimePath
+          $env:TMP = $runtimePath
+          $env:XDG_CACHE_HOME = Join-Path $runtimePath 'cache'
+          & ./.venv/Scripts/python.exe -B -m unittest discover -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Smoke test packaged executable
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath './dist/ChatDesk/ChatDesk.exe' -ArgumentList '--self-test' -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw 'Packaged application self-test failed.' }
+      - name: Upload portable Windows folder
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChatDesk-0.2-Windows-portable
+          path: dist/ChatDesk/
+          if-no-files-found: error
+          retention-days: 14
