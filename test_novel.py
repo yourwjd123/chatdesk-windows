@@ -75,6 +75,7 @@ class WorkshopTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory(); self.accounts=Accounts(Path(self.temp.name)/'data'); self.password='novel test password long'
         self.user=self.accounts.create('Author',self.password); self.window=NovelWindow(self.user)
+        self.window.show_document('chapter',self.window.book['chapters'][0])
     def tearDown(self):
         if not self.user.closed: self.window.close()
         self.app.processEvents(); self.temp.cleanup()
@@ -97,11 +98,11 @@ class WorkshopTests(unittest.TestCase):
 
     def test_delete_exclude_and_regenerate_in_ui(self):
         self.window.current['messages']=[dict(role='user',content='q'),dict(role='assistant',content='unwanted')]
-        self.window.render(); self.window.reply_list.setCurrentRow(1); self.window.exclude_reply()
+        self.window.render(); self.window.select_message(1); self.window.exclude_reply()
         self.assertNotIn('unwanted',str(messages_for(self.window.current)))
         self.window.delete_reply(); self.assertEqual(len(self.window.current['messages']),1)
         self.window.undo_reply(); self.assertEqual(len(self.window.current['messages']),2)
-        self.window.reply_list.setCurrentRow(1); old=self.window.current; self.window.regenerate()
+        self.window.select_message(1); old=self.window.current; self.window.regenerate()
         self.assertIsNot(self.window.current,old); self.assertEqual(self.window.input.toPlainText(),'q')
         self.assertEqual(self.window.current['messages'],[])
 
@@ -113,7 +114,7 @@ class WorkshopTests(unittest.TestCase):
 
     def test_mocked_ai_stays_candidate_until_adopted(self):
         self.window.user.state['profiles'][0]['key']='EXAMPLE_TEST_KEY'
-        self.window.book['outline']='confirmed outline'; self.window.chapter['body']='confirmed body'; self.window.show_document('chapter',self.window.chapter)
+        self.window.book['outline']='confirmed outline'; self.window.editor.setPlainText('confirmed body'); self.window.task('续写')
         self.window.input.setPlainText('continue the story')
         captured=[]
         def fake(profile,messages,params,stop,emit):
@@ -126,7 +127,7 @@ class WorkshopTests(unittest.TestCase):
         self.assertEqual(self.window.book['lore'],[])
         self.assertIn('unconfirmed new event',self.window.current['messages'][-1]['content'])
         # Confirm the editable adoption dialog: only explicit acceptance updates canon.
-        with patch('workshop.QDialog.exec',return_value=QDialog.DialogCode.Accepted): self.window.adopt()
+        with patch('workshop.CandidateDialog.exec',new=lambda d:(d.accept(),d.result())[1]): self.window.adopt()
         self.assertIn('unconfirmed new event',self.window.chapter['body'])
         self.assertTrue(self.window.chapter['versions'])
 

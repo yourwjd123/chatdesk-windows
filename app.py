@@ -1,4 +1,4 @@
-"""ChatDesk 0.3: encrypted multi-user Qt desktop client."""
+"""墨舟 0.4.0 · 验证版: encrypted multi-user Qt desktop client."""
 import os
 import sys
 sys.dont_write_bytecode=True
@@ -13,7 +13,7 @@ from PySide6.QtCore import Qt, QTimer, QThread, Signal, QEvent, QEventLoop, QLoc
 from PySide6.QtGui import QFont, QFontDatabase, QPixmap, QPainter, QColor, QShortcut, QKeySequence
 from PySide6.QtWidgets import (QApplication,QMainWindow,QDialog,QVBoxLayout,QHBoxLayout,QFormLayout,QWidget,
     QLabel,QLineEdit,QPlainTextEdit,QTextBrowser,QPushButton,QComboBox,QSpinBox,QDoubleSpinBox,QCheckBox,
-    QListWidget,QListWidgetItem,QFileDialog,QMessageBox,QInputDialog,QTabWidget,QFontComboBox,QSplitter,QDialogButtonBox)
+    QListWidget,QListWidgetItem,QScrollArea,QFileDialog,QMessageBox,QInputDialog,QTabWidget,QFontComboBox,QSplitter,QDialogButtonBox)
 
 
 def error(parent,text='操作未完成，请检查密码、文件完整性及指定目录的写入权限。'):
@@ -49,7 +49,7 @@ def button(text,fn,layout):
 class Login(QDialog):
     def __init__(self,accounts):
         super().__init__(); self.accounts=accounts; self.user=None
-        self.setWindowTitle('ChatDesk 0.3 · 本地用户'); self.resize(480,320)
+        self.setWindowTitle('墨舟 0.4.0 · 验证版 · 本地用户'); self.resize(480,320)
         layout=QVBoxLayout(self)
         layout.addWidget(QLabel('选择用户并解锁。每个用户的数据和附件独立加密保存。'))
         self.names=QComboBox(); layout.addWidget(self.names); self.refresh()
@@ -188,7 +188,10 @@ class Settings(QDialog):
         a=self.values['appearance']
         self.family=QFontComboBox(); self.family.setCurrentFont(QFont(a['family'])); af.addRow('正文字体',self.family)
         self.code_family=QFontComboBox(); self.code_family.setCurrentFont(QFont(a['code_family'])); af.addRow('代码字体',self.code_family)
-        self.size=QSpinBox(); self.size.setRange(8,40); self.size.setValue(a['size']); af.addRow('字号',self.size)
+        self.size=QSpinBox(); self.size.setRange(8,40); self.size.setValue(a['size']); af.addRow('正文字号',self.size)
+        self.chat_family=QFontComboBox(); self.chat_family.setCurrentFont(QFont(a.get('chat_family',a['family']))); af.addRow('AI对话字体',self.chat_family)
+        self.chat_size=QSpinBox(); self.chat_size.setRange(8,40); self.chat_size.setValue(a.get('chat_size',a['size'])); af.addRow('AI对话字号',self.chat_size)
+        self.ui_size=QSpinBox(); self.ui_size.setRange(9,16); self.ui_size.setValue(a.get('ui_size',10)); af.addRow('界面字号',self.ui_size)
         self.theme=QComboBox(); self.theme.addItems(['浅色','深色']); self.theme.setCurrentText(a['theme']); af.addRow('主题',self.theme)
         self.bg=a['background']; self.bglabel=QLabel('已选择背景图片' if self.bg else '纯色背景'); af.addRow('背景',self.bglabel)
         button('选择背景图片',self.choose_background,af); button('恢复纯色背景',self.clear_background,af)
@@ -204,6 +207,9 @@ class Settings(QDialog):
         button('从0.1版导入会话和API配置',self.import_legacy,dl)
         dl.addWidget(QLabel('恢复备份：在登录页选择“恢复加密备份”。\n备份包含已保存的数据；请先应用设置，再执行备份。\n原0.1版文件不会自动删除，请自行保管或清理。'))
         dl.addStretch()
+        for index in range(tabs.count()):
+            page=tabs.widget(index); title=tabs.tabText(index); tabs.removeTab(index)
+            scroll=QScrollArea(); scroll.setWidgetResizable(True); scroll.setFrameShape(QScrollArea.Shape.NoFrame); scroll.setWidget(page); tabs.insertTab(index,scroll,title)
         bottom=QHBoxLayout(); layout.addLayout(bottom)
         button('应用并关闭',self.apply,bottom); button('取消',self.reject,bottom)
 
@@ -266,6 +272,7 @@ class Settings(QDialog):
     def clear_background(self): self.bg=''; self.bglabel.setText('纯色背景')
     def reset_appearance(self):
         self.family.setCurrentFont(QFont('Microsoft YaHei')); self.code_family.setCurrentFont(QFont('Consolas')); self.size.setValue(12)
+        self.chat_family.setCurrentFont(QFont('Microsoft YaHei')); self.chat_size.setValue(12); self.ui_size.setValue(10)
         self.theme.setCurrentText('浅色'); self.mode.setCurrentText('填充'); self.shade.setValue(80); self.clear_background()
     def backup(self):
         try:
@@ -302,7 +309,7 @@ class Settings(QDialog):
             # Preserve live attachments/sessions changed by manager or legacy import.
             self.user.state.update(profiles=self.values['profiles'],idle_minutes=self.idle.value(),
                 defaults=dict(system=self.default_prompt.toPlainText(),style=self.default_style.currentText(),**{k:w.value() for k,w in self.default_numbers.items()}),
-                appearance=dict(family=self.family.currentFont().family(),code_family=self.code_family.currentFont().family(),size=self.size.value(),theme=self.theme.currentText(),background=self.bg,mode=self.mode.currentText(),shade=self.shade.value()))
+                appearance=dict(family=self.family.currentFont().family(),chat_family=self.chat_family.currentFont().family(),chat_size=self.chat_size.value(),ui_size=self.ui_size.value(),code_family=self.code_family.currentFont().family(),size=self.size.value(),theme=self.theme.currentText(),background=self.bg,mode=self.mode.currentText(),shade=self.shade.value()))
             self.user.save(); self.main.apply_appearance(); self.main.refresh_profiles(); self.main.update_title(); self.accept()
         except ValueError as exc:
             self.restore_state(old); error(self,str(exc))
@@ -363,7 +370,7 @@ class MainWindow(QMainWindow):
             self.last_activity=time.monotonic()
         return super().eventFilter(obj,event)
     def update_title(self):
-        self.setWindowTitle('ChatDesk 0.3 · '+self.user.name)
+        self.setWindowTitle('墨舟 0.4.0 · 验证版 · '+self.user.name)
         if hasattr(self,'identity'): self.identity.setText(self.user.name)
     def check_idle(self):
         if not self.pending_lock and time.monotonic()-self.last_activity>=self.user.state['idle_minutes']*60: self.lock()

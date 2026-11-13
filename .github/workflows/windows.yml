@@ -1,8 +1,14 @@
-name: Windows verification and release
+name: Windows verification and approved release
 on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: Publish only after the user has approved this version
+        required: true
+        default: false
+        type: boolean
 permissions:
   contents: write
 concurrency:
@@ -44,18 +50,19 @@ jobs:
         run: |
           Copy-Item README.md ./dist/ChatDesk/README.zh-CN.md
           Copy-Item VALIDATION.md ./dist/ChatDesk/VALIDATION.md
-          Compress-Archive -Path ./dist/ChatDesk/* -DestinationPath ./runtime/Mozhou-0.3.2-Windows-x64.zip -Force
-          Get-FileHash ./runtime/Mozhou-0.3.2-Windows-x64.zip -Algorithm SHA256
+          Compress-Archive -Path ./dist/ChatDesk/* -DestinationPath ./runtime/Mozhou-0.4.0-Windows-x64.zip -Force
+          Get-FileHash ./runtime/Mozhou-0.4.0-Windows-x64.zip -Algorithm SHA256
       - name: Publish verified release
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_release == true
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $version = 'v0.3.2'
+          $version = 'v0.4.0'
           gh release view $version --repo $env:GITHUB_REPOSITORY *> $null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $version ./runtime/Mozhou-0.3.2-Windows-x64.zip --repo $env:GITHUB_REPOSITORY --clobber
+            gh release upload $version ./runtime/Mozhou-0.4.0-Windows-x64.zip --repo $env:GITHUB_REPOSITORY --clobber
           } else {
-            gh release create $version ./runtime/Mozhou-0.3.2-Windows-x64.zip --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'Mozhou Novel Studio 0.3.2' --notes-file RELEASE_NOTES.md --prerelease
+            gh release create $version ./runtime/Mozhou-0.4.0-Windows-x64.zip --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'Mozhou Novel Studio 0.4.0' --notes-file RELEASE_NOTES.md --prerelease
           }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

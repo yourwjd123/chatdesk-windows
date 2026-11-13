@@ -93,7 +93,7 @@ def context_sources(book,current,query):
 
 def assemble(entries,budget=32000,selected=None):
     required={e['id'] for e in entries if e['required']}
-    choice=set(selected) | required if selected is not None else set(required)
+    choice=(set(selected) & {e['id'] for e in entries}) | required if selected is not None else set(required)
     def chunk(e): return '\n\n【'+e['label']+'】\n'+e['text']
     header='以下是作者确认或手动编辑的作品资料。AI候选回复不自动构成正式剧情。以这些资料为依据；如有冲突请指出来源，不自行改写事实。'
     used=len(header)+sum(len(chunk(e)) for e in entries if e['id'] in choice)
@@ -127,7 +127,7 @@ def undo_remove(session):
 def branch(session,index):
     result=copy.deepcopy(session); result['id']=uid(); result['title']=session['title']+' · 分支'
     result['messages']=copy.deepcopy(session['messages'][:index+1]); result['deleted']=[]
-    result['draft_text']=''; result['draft_attachments']=[]; result.pop('context_bundle',None)
+    result['draft_text']=''; result['draft_attachments']=[]; result.pop('context_bundle',None); result.pop('draft_task',None)
     return result
 
 
