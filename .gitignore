@@ -1,0 +1,22 @@
+.venv/
+runtime/
+dist/
+build/
+__pycache__/
+*.pyc
+*.enc
+conversations.json
+*.log
+.env
+.env.*
+
+# User data and manual exports
+data/
+exports/
+*.sqlite
+*.sqlite3
+*.db
+*.db-*
+*.txt
+!requirements.txt
+*.zip
