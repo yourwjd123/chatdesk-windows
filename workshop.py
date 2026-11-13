@@ -5,7 +5,7 @@ from datetime import datetime
 from PySide6.QtCore import Qt,QTimer
 from PySide6.QtGui import QFont,QTextCursor,QKeySequence,QShortcut
 from PySide6.QtWidgets import (QWidget,QVBoxLayout,QHBoxLayout,QGridLayout,QFormLayout,QSplitter,QLabel,QPushButton,
-    QComboBox,QLineEdit,QPlainTextEdit,QListWidget,QListWidgetItem,QTreeWidget,QTreeWidgetItem,QTabWidget,
+    QScrollArea,QComboBox,QLineEdit,QPlainTextEdit,QListWidget,QListWidgetItem,QTreeWidget,QTreeWidgetItem,QTabWidget,
     QDialog,QDialogButtonBox,QMessageBox,QInputDialog,QSpinBox,QCheckBox,QFileDialog)
 from app import MainWindow,button,error,choose_save
 from core import atomic_write
@@ -130,9 +130,9 @@ class NovelWindow(MainWindow):
         ai_layout.addWidget(self.input); self.input.setMaximumHeight(90); self.input.setPlaceholderText('讨论剧情，或选中文本后使用上方创作操作……')
         row=QHBoxLayout(); ai_layout.addLayout(row); send=button('发送  Ctrl+Enter',self.send,row); send.setObjectName('primary'); button('停止',self.stop,row)
         row=QHBoxLayout(); ai_layout.addLayout(row); button('导出回答',lambda:self.export(True),row); button('导出讨论',lambda:self.export(False),row)
-        assistant.setObjectName('assistant'); self.workspace.addWidget(assistant); self.workspace.setSizes([210,660,440])
+        assistant.setObjectName('assistant'); assistant_scroll=QScrollArea(); assistant_scroll.setWidgetResizable(True); assistant_scroll.setFrameShape(QScrollArea.Shape.NoFrame); assistant_scroll.setWidget(assistant); assistant_scroll.setMinimumWidth(340); self.workspace.addWidget(assistant_scroll); self.workspace.setSizes([210,660,440])
         layout.addWidget(self.status)
-        self.resize(1450,960); self.setMinimumSize(1180,800)
+        self.resize(1420,900); self.setMinimumSize(1100,680)
         self.autosave=QTimer(self); self.autosave.setSingleShot(True); self.autosave.timeout.connect(self.autosave_document)
         for w in [self.editor,self.plan_editor,self.summary_editor]: w.textChanged.connect(self.schedule_save)
         self.doc_title.textChanged.connect(self.schedule_save); self.volume.textChanged.connect(self.schedule_save); self.pinned.toggled.connect(self.schedule_save)

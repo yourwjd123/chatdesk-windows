@@ -2,7 +2,7 @@
 
 基于 PySide6 的 Windows 本地小说工作台，支持 DeepSeek / OpenAI兼容API。三栏布局：作品导航、正文编辑、AI创作助手。
 
-[下载 Windows x64 便携版](https://github.com/yourwjd123/chatdesk-windows/releases/download/v0.3.1/Mozhou-0.3.1-Windows-x64.zip) · [发布记录](https://github.com/yourwjd123/chatdesk-windows/releases/tag/v0.3.1) · [自动验证](https://github.com/yourwjd123/chatdesk-windows/actions)
+[下载 Windows x64 便携版](https://github.com/yourwjd123/chatdesk-windows/releases/download/v0.3.2/Mozhou-0.3.2-Windows-x64.zip) · [发布记录](https://github.com/yourwjd123/chatdesk-windows/releases/tag/v0.3.2) · [自动验证](https://github.com/yourwjd123/chatdesk-windows/actions)
 
 首次发布或更新构建期间，下载链接需等待对应Windows流程成功。当前源码不会把构建文件提交进Git历史；大文件仅作为最新Release资产保存。
 
@@ -22,7 +22,7 @@ AI不会自动记住整部小说。每次请求由以下资料组成：
 
 1. 作品总纲与风格、当前章节计划：默认必选，不静默截断。
 2. 当前章节已确认摘要、正文末尾最多6000字符、上一章末尾最多3000字符。
-3. 最近已完成章节的人工摘要、关键词匹配的早期摘要与设定；固定资料优先选取。
+3. 最近已完成章节的人工摘要、关键词匹配的早期摘要与设定；固定资料优先选取。还会从更早的正式正文中检索最多8段相关片段，即使未填写摘要也可找回细节；章节全文可手动勾选，未来章节默认不参与。
 4. 当前对话中保留且未排除的消息、参与发送的附件。
 
 作品资料在“检查上下文”和发送前都能逐项预览、勾选，显示未参与的资料。默认作品资料预算32000字符，可调整；预算不含对话历史和附件，不等于模型token上限。总纲或手动选取资料超出预算时明确提示，不能静默截断。自动选取采用本地关键词匹配，不使用外部嵌入服务。
@@ -52,7 +52,7 @@ AI回答不会自动改变正文、摘要、人物状态或伏笔。选中右侧
 
 ## UI与快捷操作
 
-左侧书架和章节资料，中央正文/章节计划/确认摘要，右侧创作助手。“专注写作”隐藏两侧，再次点击恢复。Ctrl+S保存版本，Ctrl+Enter发送AI请求。
+左侧书架和章节资料，中央正文/章节计划/确认摘要，右侧创作助手；小屏幕下助手区可滚动。“专注写作”隐藏两侧，再次点击恢复。Ctrl+S保存版本，Ctrl+Enter发送AI请求。
 
 设置集中在顶部“设置”：用户与安全、API与模型、新会话默认值、外观、数据与附件。支持正文和代码字体、字号、浅/深色、加密背景图片与遮罩。讨论专属的背景提示词和生成参数通过右侧按钮调整。
 

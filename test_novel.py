@@ -32,6 +32,18 @@ class CanonTests(unittest.TestCase):
         with self.assertRaises(ValueError): assemble(entries,20)
         self.assertNotIn('body:'+c2['id'],result['selected'])
 
+    def test_early_canonical_body_retrieved_without_summary(self):
+        book=project('Mystery'); book['chapters'][0]['body']='林舟把银钥匙藏在古井石缝。'
+        book['chapters'] += [chapter('第%d章'%i) for i in range(2,9)]
+        current=book['chapters'][-1]; current['plan']='林舟寻找银钥匙'
+        future=chapter('未来章'); future['body']='银钥匙最终被摧毁'; book['chapters'].append(future)
+        entries=context_sources(book,current,'银钥匙藏在哪里')
+        result=assemble(entries,32000)
+        self.assertIn('古井石缝',result['text'])
+        self.assertNotIn('最终被摧毁',result['text'])
+        self.assertTrue(any(e['id'].startswith('excerpt:') for e in entries))
+        self.assertIn('body:'+future['id'],[e['id'] for e in entries])
+
     def test_exclusion_delete_undo_and_branches(self):
         s=default_session(); s['messages']=[dict(role='user',content='question'),dict(role='assistant',content='bad answer'),dict(role='user',content='follow up'),dict(role='assistant',content='descendant')]
         exclude_message(s,1); self.assertNotIn('bad answer',str(messages_for(s)))

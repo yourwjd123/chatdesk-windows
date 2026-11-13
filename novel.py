@@ -69,6 +69,21 @@ def context_sources(book,current,query):
         # Future chapter summaries are available for manual selection, never auto-included.
         priority=70+nearby if nearby else 30+min(20,score) if score and i<index else -10
         add('summary:'+c['id'],'章节摘要 · '+c['title'],c['summary'],'近期摘要' if nearby else '关键词匹配' if score else '手动选择',False,priority)
+    excerpts=[]
+    for i,c in enumerate(book['chapters']):
+        if current and c['id']==current['id']: continue
+        add('body:'+c['id'],'完整正文 · '+c['title'],c['body'],'早期或未来章节全文，仅手动选择',False,-100)
+        if i>=index or not search: continue
+        # Retrieve passages from AUTHOR BODY, never from unaccepted assistant replies.
+        ranked=[]
+        for offset in range(0,len(c['body']),1000):
+            passage=c['body'][offset:offset+1200]
+            score=len(search & keywords(passage))
+            if score: ranked.append((score,offset,passage))
+        for score,offset,passage in sorted(ranked,key=lambda value:value[0],reverse=True)[:2]:
+            excerpts.append((score,i,c,offset,passage))
+    for score,i,c,offset,passage in sorted(excerpts,key=lambda value:(value[0],value[1]),reverse=True)[:8]:
+        add('excerpt:'+c['id']+':'+str(offset),'正文检索片段 · '+c['title']+' · '+str(offset+1)+'–'+str(offset+len(passage)),passage,'关键词命中原文；最多8段，可取消',False,45+min(20,score))
     for item in book['lore']:
         score=len(search & keywords(item['title']+' '+item['text']))
         priority=80 if item.get('pinned') else 40+min(20,score) if score else -10
