@@ -118,6 +118,14 @@ class WorkshopTests(unittest.TestCase):
         self.assertIn('unconfirmed new event',self.window.chapter['body'])
         self.assertTrue(self.window.chapter['versions'])
 
+    def test_parameters_visible_on_repeated_open(self):
+        def inspect():
+            for w in [self.window.prompt,self.window.style,*self.window.params.values()]:
+                self.assertFalse(w.isHidden())
+            return QDialog.DialogCode.Accepted
+        with patch('workshop.QDialog.exec',side_effect=inspect):
+            self.window.chat_parameters(); self.window.chat_parameters()
+
     def test_project_switch_and_chapter_order(self):
         self.window.editor.setPlainText('first project text'); first=self.window.book['id']
         with patch('workshop.QInputDialog.getText',return_value=('Second book',True)): self.window.create_book()

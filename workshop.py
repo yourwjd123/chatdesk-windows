@@ -350,7 +350,9 @@ class NovelWindow(MainWindow):
         if self.busy: return
         dialog=QDialog(self); dialog.setWindowTitle('本讨论的背景提示词与生成参数'); layout=QFormLayout(dialog); layout.addRow('背景提示词',self.prompt)
         for k,label in [('temperature','温度'),('tokens','最大输出token'),('chars','期望字符（0不限）'),('rounds','保留历史轮数')]: layout.addRow(label,self.params[k])
-        layout.addRow('遵循预设',self.style); button('完成',dialog.accept,layout); dialog.exec()
+        layout.addRow('遵循预设',self.style); button('完成',dialog.accept,layout)
+        for w in [self.prompt,self.style,*self.params.values()]: w.show()
+        dialog.exec()
         for w in [self.prompt,self.style,*self.params.values()]: w.setParent(self); w.hide()
         self.save_current()
     def context_dialog(self):

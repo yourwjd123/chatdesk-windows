@@ -2,7 +2,7 @@
 
 基于 PySide6 的 Windows 本地小说工作台，支持 DeepSeek / OpenAI兼容API。三栏布局：作品导航、正文编辑、AI创作助手。
 
-[下载 Windows x64 便携版](https://github.com/yourwjd123/chatdesk-windows/releases/download/v0.3.0/Mozhou-0.3.0-Windows-x64.zip) · [发布记录](https://github.com/yourwjd123/chatdesk-windows/releases/tag/v0.3.0) · [自动验证](https://github.com/yourwjd123/chatdesk-windows/actions)
+[下载 Windows x64 便携版](https://github.com/yourwjd123/chatdesk-windows/releases/download/v0.3.1/Mozhou-0.3.1-Windows-x64.zip) · [发布记录](https://github.com/yourwjd123/chatdesk-windows/releases/tag/v0.3.1) · [自动验证](https://github.com/yourwjd123/chatdesk-windows/actions)
 
 首次发布或更新构建期间，下载链接需等待对应Windows流程成功。当前源码不会把构建文件提交进Git历史；大文件仅作为最新Release资产保存。
 
