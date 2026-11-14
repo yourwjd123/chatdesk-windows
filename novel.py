@@ -2,10 +2,27 @@
 import copy
 import re
 import uuid
+import hashlib
 from datetime import datetime, timezone
 
 
 def uid(): return uuid.uuid4().hex
+
+
+def body_hash(text): return hashlib.sha256(text.encode('utf-8')).hexdigest()
+
+
+def summary_current(document):
+    source=document.get('summary_source_hash')
+    return not source or source==body_hash(document.get('body',''))
+
+
+def track_chapter_change(document,body,summary):
+    """A confirmed summary belongs to its source body, not to the latest edit."""
+    if summary!=document.get('summary',''):
+        document['summary_source_hash']=body_hash(body)
+    elif document.get('summary') and 'summary_source_hash' not in document:
+        document['summary_source_hash']=body_hash(document.get('body',''))
 
 def chapter(title='第一章'):
     value=dict(id=uid(),title=title,volume='第一卷',plan='',summary='',body='',versions=[])
@@ -53,7 +70,7 @@ def context_sources(book,current,query):
     add('canon','作品总纲与风格','作品：'+book['title']+'\n简介：'+book['premise']+'\n总纲：'+book['outline']+'\n风格与约束：'+book['style'],'总纲始终参与；内容可在作品资料中修改',True,100)
     if current:
         add('plan:'+current['id'],'当前章节计划 · '+current['title'],current['plan'],'当前章节写作边界',True,95)
-        add('current-summary:'+current['id'],'本章已确认摘要',current['summary'],'本章人工确认的剧情状态',False,88)
+        if summary_current(current): add('current-summary:'+current['id'],'本章已确认摘要',current['summary'],'本章人工确认的剧情状态',False,88)
         add('tail:'+current['id'],'当前正文末尾（最多6000字符）',current['body'][-6000:],'本章衔接段落',False,90)
         add('body:'+current['id'],'当前章节完整正文',current['body'],'需要全章审阅时手动勾选',False,-100)
         index=next(i for i,c in enumerate(book['chapters']) if c['id']==current['id'])
@@ -68,7 +85,7 @@ def context_sources(book,current,query):
         nearby=max(0,3-(index-i-1)) if i<index else 0
         # Future chapter summaries are available for manual selection, never auto-included.
         priority=70+nearby if nearby else 30+min(20,score) if score and i<index else -10
-        add('summary:'+c['id'],'章节摘要 · '+c['title'],c['summary'],'近期摘要' if nearby else '关键词匹配' if score else '手动选择',False,priority)
+        if summary_current(c): add('summary:'+c['id'],'章节摘要 · '+c['title'],c['summary'],'近期摘要' if nearby else '关键词匹配' if score else '手动选择',False,priority)
     excerpts=[]
     for i,c in enumerate(book['chapters']):
         if current and c['id']==current['id']: continue

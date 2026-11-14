@@ -1,4 +1,4 @@
-"""墨舟 0.4.0 · 验证版: encrypted multi-user Qt desktop client."""
+"""墨舟 0.5.0 · 验证版: encrypted multi-user Qt desktop client."""
 import os
 import sys
 sys.dont_write_bytecode=True
@@ -49,7 +49,7 @@ def button(text,fn,layout):
 class Login(QDialog):
     def __init__(self,accounts):
         super().__init__(); self.accounts=accounts; self.user=None
-        self.setWindowTitle('墨舟 0.4.0 · 验证版 · 本地用户'); self.resize(480,320)
+        self.setWindowTitle('墨舟 0.5.0 · 验证版 · 本地用户'); self.resize(480,320)
         layout=QVBoxLayout(self)
         layout.addWidget(QLabel('选择用户并解锁。每个用户的数据和附件独立加密保存。'))
         self.names=QComboBox(); layout.addWidget(self.names); self.refresh()
@@ -370,7 +370,7 @@ class MainWindow(QMainWindow):
             self.last_activity=time.monotonic()
         return super().eventFilter(obj,event)
     def update_title(self):
-        self.setWindowTitle('墨舟 0.4.0 · 验证版 · '+self.user.name)
+        self.setWindowTitle('墨舟 0.5.0 · 验证版 · '+self.user.name)
         if hasattr(self,'identity'): self.identity.setText(self.user.name)
     def check_idle(self):
         if not self.pending_lock and time.monotonic()-self.last_activity>=self.user.state['idle_minutes']*60: self.lock()

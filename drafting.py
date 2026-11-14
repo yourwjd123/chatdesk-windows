@@ -167,6 +167,9 @@ def apply_proposal(state,task,text,title='',reuse_empty=False):
         value=old[:start]+text+old[end:]
     elif target=='field': value=text
     else: raise ValueError('无法直接应用这类候选。')
+    if task['kind']=='chapter' and task['field'] in ['body','summary']:
+        from novel import track_chapter_change
+        track_chapter_change(doc,value if task['field']=='body' else doc['body'],value if task['field']=='summary' else doc['summary'])
     snapshot(doc,task['kind']); doc[task['field']]=value
     doc['checkpoint']={k:doc.get(k,'') for k in FIELDS[task['kind']]}
     return dict(kind=task['kind'],doc_id=doc['id'],book_id=book['id'])

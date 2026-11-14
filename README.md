@@ -1,12 +1,14 @@
-# 墨舟 Novel Studio 0.4.0 · 小说创作工作台
+# 墨舟 Novel Studio 0.5.0 · 小说创作工作台
 
-本版已经用户确认发布。Windows便携包只在自动测试和打包EXE自检通过后上传。
-
-[下载 Windows x64 便携版](https://github.com/yourwjd123/chatdesk-windows/releases/download/v0.4.0/Mozhou-0.4.0-Windows-x64.zip) · [发布记录](https://github.com/yourwjd123/chatdesk-windows/releases/tag/v0.4.0) · [Windows验证记录](https://github.com/yourwjd123/chatdesk-windows/actions)
+本版为待审核构建，尚未发布。已发布版本仍为 v0.4.0；新版仅在用户明确批准后创建 Release。
 
 完整解压到自己选择的非系统盘文件夹，保留 `_internal` 等依赖，双击 `ChatDesk.exe`；无需安装Python。升级前可在旧版创建加密备份，新版继续选择原数据根目录登录。
 
 ## 本版交互
+
+- 参考 Pagekin 的创作阶段组织方式，新增“构思与设定 / 故事规划 / 章节写作”导航，仅呈现当前阶段的资料入口。保持现有 PySide6 与加密存储实现，本版未移植 Pagekin 源码。
+- 根据屏幕可用区域选择初始尺寸，使用 Qt 高 DPI 逻辑像素；1050 以下自动收起导航，900 以下切换正文或 AI 单区视图。常用缩放与窗口尺寸有自动化验证，实际效果仍需 Windows 实机体验。
+- 章节可确认定稿，原定稿快照不会被日常编辑覆盖。正文改变后旧摘要保留可见，但不再发送，更新摘要后恢复使用。
 
 - 写作 / AI讨论双模式：写作时正文与AI并排；讨论时对话占主工作区，返回后保留文档、选区、撤销历史和滚动位置。导航可收起，正文可专注阅读。
 - AI消息独立滚动，输入区固定在底部。模型、附件、历史操作收进就近菜单，不再重复显示消息选择列表，也不滚动整个助手栏。

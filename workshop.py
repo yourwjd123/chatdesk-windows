@@ -18,6 +18,7 @@ from storage import default_session
 from novel import project,chapter,uid,checkpoint,restore,context_sources,assemble,exclude_message,remove_message,undo_remove,branch,candidate_branch
 from drafting import FIELDS,PROMPTS,make_task,task_input,qt_index,find_book,find_document,check_target,apply_proposal
 from workspace_dialogs import CandidateDialog
+from novel import track_chapter_change,summary_current
 
 CHAPTER_FIELDS=FIELDS['chapter']
 BOOK_FIELDS=FIELDS['book']
@@ -79,6 +80,7 @@ class NovelWindow(MainWindow):
         self.ready=False; self.busy=False; self.worker=None; self.run=None; self.pending_lock=False; self.exit_app=False; self.close_requested=False
         self.draft=[]; self.pending_task=None; self.selected_index=None; self.last_activity=time.monotonic()
         self.doc_cache={}; self.html_cache={}; self.shown_sessions=[]; self.showing_document=False; self.focused=False
+        self.stage='idea'; self.compact=False
         self.ui=user.state.setdefault('workspace',dict(mode='write',navigation=True,assistant=True)); self.last_result=self.ui.get('last_result')
         self.render_timer=QTimer(self); self.render_timer.setSingleShot(True); self.render_timer.timeout.connect(self.render)
         self.autosave=QTimer(self); self.autosave.setSingleShot(True); self.autosave.timeout.connect(self.autosave_document)
@@ -104,11 +106,19 @@ class NovelWindow(MainWindow):
         for text,fn in [('新建作品',self.create_book),('导出正文',self.export_manuscript),('数据与备份',self.settings)]: menu.addAction(text,fn)
         menu.addSeparator(); menu.addAction('删除作品',self.delete_book); self.book_menu.setMenu(menu); top.addWidget(self.book_menu)
         top.addStretch()
-        self.write_mode=button('写作',lambda:self.set_mode('write'),top); self.write_mode.setCheckable(True)
-        self.discuss_mode=button('AI讨论',lambda:self.set_mode('discuss'),top); self.discuss_mode.setCheckable(True)
-        self.focus_button=button('专注',self.focus_mode,top)
+        export_button=QToolButton(); export_button.setText('另存为 ▾'); export_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        export_menu=QMenu(export_button)
+        for text,fn in [('作品正文 · TXT / MD',self.export_manuscript),('当前讨论 · TXT / MD',lambda:self.export(False)),('最近回答 · TXT / MD',lambda:self.export(True))]: export_menu.addAction(text,fn)
+        export_button.setMenu(export_menu); top.addWidget(export_button)
         button('设置',self.settings,top); button('锁定',self.lock,top)
         self.identity=QLabel(user.name); self.identity.setTextFormat(Qt.TextFormat.PlainText); self.identity.setObjectName('muted'); self.identity.setMaximumWidth(100); self.identity.setMinimumWidth(0); self.identity.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); top.addWidget(self.identity)
+        stages=QHBoxLayout(); stages.setSpacing(6); layout.addLayout(stages); self.stage_buttons={}
+        for key,title in [('idea','构思与设定'),('plan','故事规划'),('write','章节写作')]:
+            control=button(title,lambda checked=False,k=key:self.set_stage(k),stages); control.setCheckable(True); self.stage_buttons[key]=control
+        stages.addStretch()
+        self.write_mode=button('正文与讨论',lambda:self.set_mode('write'),stages); self.write_mode.setCheckable(True)
+        self.discuss_mode=button('放大AI讨论',lambda:self.set_mode('discuss'),stages); self.discuss_mode.setCheckable(True)
+        self.focus_button=button('专注正文',self.focus_mode,stages)
         self.workspace=QSplitter(); self.workspace.setChildrenCollapsible(False); layout.addWidget(self.workspace,1)
         self.navigation=QWidget(); self.navigation.setObjectName('sidebar'); nl=QVBoxLayout(self.navigation); nl.setContentsMargins(8,12,8,8); nl.setSpacing(8)
         self.nav=QTreeWidget(); self.nav.setHeaderHidden(True); self.nav.setMinimumWidth(145); self.nav.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -143,6 +153,11 @@ class NovelWindow(MainWindow):
         for name in ['润色选段','扩写选段','压缩选段']: button('AI '+name,lambda checked=False,n=name:self.task(n),sr)
         sr.addStretch(); el.addWidget(self.selection_tools); self.selection_tools.hide()
         self.count=QLabel(); self.count.setObjectName('muted'); el.addWidget(self.count)
+        lifecycle=QHBoxLayout(); el.addLayout(lifecycle)
+        self.chapter_status=QLabel('草稿'); self.chapter_status.setObjectName('muted'); lifecycle.addWidget(self.chapter_status)
+        self.review_button=button('AI审稿',lambda:self.task('检查矛盾'),lifecycle)
+        self.finalize_button=button('确认定稿',self.finalize_chapter,lifecycle)
+        lifecycle.addStretch(); button('历史版本',self.versions,lifecycle)
         self.content_split.addWidget(self.paper)
         self.assistant=QWidget(); self.assistant.setObjectName('assistant'); al=QVBoxLayout(self.assistant); al.setContentsMargins(10,10,10,8); al.setSpacing(6)
         head=QHBoxLayout(); al.addLayout(head)
@@ -171,7 +186,10 @@ class NovelWindow(MainWindow):
         footer=QHBoxLayout(); layout.addLayout(footer)
         self.status=QLabel('就绪'); self.status.setTextFormat(Qt.TextFormat.PlainText); self.status.setObjectName('muted'); self.status.setWordWrap(True); footer.addWidget(self.status,1)
         self.run_button=button('查看生成',self.open_run,footer); self.run_button.hide()
-        self.resize(1360,820); self.setMinimumSize(900,560)
+        self.setMinimumSize(720,500)
+        available=self.screen().availableGeometry()
+        self.resize(min(1440,available.width()),min(900,available.height()))
+        self.move(available.x()+max(0,(available.width()-self.width())//2),available.y()+max(0,(available.height()-self.height())//2))
         for edit in [self.editor,self.plan_editor,self.summary_editor]: edit.textChanged.connect(self.schedule_save); edit.selectionChanged.connect(self.update_selection_actions)
         self.doc_title.textChanged.connect(self.schedule_save); self.volume.textChanged.connect(self.schedule_save); self.pinned.toggled.connect(self.schedule_save)
         self.input.textChanged.connect(self.schedule_context)
@@ -184,9 +202,10 @@ class NovelWindow(MainWindow):
         self.ready=True; self.refresh_books()
         last=self.ui.get('book_id'); index=self.books.findData(last); self.switch_book(index if index>=0 else 0)
         self.set_mode(self.ui.get('mode','write'),persist=False); self.apply_appearance(); self.update_title(); self.busy_controls()
+        self.sync_stage(); self.adapt_workspace()
 
     def update_title(self):
-        self.setWindowTitle('墨舟 Novel Studio 0.4.0 · 验证版 · '+self.user.name)
+        self.setWindowTitle('墨舟 Novel Studio 0.5.0 · 验证版 · '+self.user.name)
         if hasattr(self,'identity'):
             self.identity.setText(self.identity.fontMetrics().elidedText(self.user.name,Qt.TextElideMode.ElideRight,100)); self.identity.setToolTip(self.user.name)
 
@@ -207,11 +226,95 @@ class NovelWindow(MainWindow):
         self.paper.setVisible(mode=='write'); self.assistant.setVisible(True)
         if mode=='write': self.content_split.setSizes(self.ui.get('split',[620,420]))
         self.write_mode.setChecked(mode=='write'); self.discuss_mode.setChecked(mode=='discuss')
-        self.navigation.setVisible(self.ui.get('navigation',True)); self.focus_button.setText('专注')
+        self.navigation.setVisible(self.ui.get('navigation',True)); self.focus_button.setText('专注正文')
+        self.adapt_workspace()
         if persist and self.ready: self.remember_view(); self.persist()
 
     def toggle_navigation(self):
-        self.ui['navigation']=not self.navigation.isVisible(); self.navigation.setVisible(self.ui['navigation']); self.persist()
+        self.ui['navigation']=not self.navigation.isVisible(); self.navigation.setVisible(self.ui['navigation'])
+        if self.width()<1050 and self.ui['navigation'] and self.ui.get('mode')=='write':
+            self.paper.hide(); self.assistant.hide()
+        else: self.adapt_workspace()
+        self.persist()
+
+    def resizeEvent(self,event):
+        super().resizeEvent(event)
+        if getattr(self,'ready',False): self.adapt_workspace()
+
+    def showEvent(self,event):
+        super().showEvent(event)
+        if not getattr(self,'screen_hooked',False) and self.windowHandle():
+            self.screen_hooked=True
+            self.windowHandle().screenChanged.connect(self.fit_screen)
+            self.screen().availableGeometryChanged.connect(lambda *_:self.fit_screen(self.screen()))
+
+    def fit_screen(self,screen):
+        if not screen: return
+        bounds=screen.availableGeometry()
+        if self.isMaximized(): return
+        self.resize(min(self.width(),bounds.width()),min(self.height(),bounds.height()))
+        self.move(max(bounds.x(),min(self.x(),bounds.right()-self.width()+1)),max(bounds.y(),min(self.y(),bounds.bottom()-self.height()+1)))
+        self.adapt_workspace()
+
+    def adapt_workspace(self):
+        """Qt dimensions are logical pixels, already adjusted for each screen's DPI."""
+        if not hasattr(self,'assistant'): return
+        narrow=self.width()<900; self.compact=narrow
+        self.identity.setVisible(self.width()>=1100)
+        self.navigation.setVisible(self.ui.get('navigation',True) and self.width()>=1050 and not self.focused)
+        if self.focused: return
+        mode=self.ui.get('mode','write')
+        self.paper.setVisible(mode=='write'); self.assistant.setVisible(mode=='discuss' or not narrow)
+        self.write_mode.setText('正文' if narrow else '正文与讨论')
+        self.discuss_mode.setText('AI讨论' if narrow else '放大AI讨论')
+        self.use_current.setText('引用本章' if narrow else '引用当前章')
+
+    def set_stage(self,stage):
+        if not self.book or not self.save_current(): return
+        if stage=='idea': self.show_document('book',self.book,1)
+        elif stage=='plan': self.show_document('book',self.book,0)
+        elif self.book['chapters']:
+            identity=self.ui.get('last_chapter')
+            doc=next((c for c in self.book['chapters'] if c['id']==identity),self.book['chapters'][0])
+            self.show_document('chapter',doc)
+        else: self.show_collection('chapters')
+        self.set_mode('write',persist=False); self.sync_stage(); self.remember_view(); self.persist()
+
+    def sync_stage(self):
+        if not hasattr(self,'stage_buttons'): return
+        if self.doc_kind=='chapter':
+            self.stage='write'; self.ui['last_chapter']=self.document['id']
+        elif self.doc_kind=='book': self.stage='idea' if self.editor_tabs.currentIndex()!=0 else 'plan'
+        elif self.doc_kind=='lore': self.stage='idea'
+        elif self.doc_kind=='collection': self.stage='write' if getattr(self,'collection_kind','')=='chapters' else 'idea'
+        for key,control in self.stage_buttons.items(): control.setChecked(key==self.stage)
+        for data,item in getattr(self,'nav_items',{}).items():
+            kind,identity=data
+            visible=(self.stage=='idea' and (kind=='lore' or kind=='book' and identity=='premise' or kind=='collection' and identity in ['世界观','人物','other'])
+                     or self.stage=='plan' and (kind=='book' and identity=='outline' or kind=='collection' and identity=='chapters')
+                     or self.stage=='write' and kind in ['chapter','collection'] and (kind=='chapter' or identity=='chapters'))
+            item.setHidden(not visible)
+        if hasattr(self,'chapter_status'):
+            is_chapter=self.doc_kind=='chapter'
+            self.review_button.setVisible(is_chapter); self.finalize_button.setVisible(is_chapter); self.chapter_status.setVisible(is_chapter)
+            if is_chapter:
+                final=self.document.get('finalized')
+                current=self.editor.toPlainText()
+                valid=bool(final and final.get('body')==current)
+                self.chapter_status.setText('已定稿' if valid else '修改中 · 定稿已保留' if final else '草稿')
+                self.finalize_button.setText('更新定稿' if final else '确认定稿')
+
+    def finalize_chapter(self):
+        if self.doc_kind!='chapter' or not self.save_current(): return
+        if not self.document['body'].strip(): self.status.setText('请先编写或采纳正文，再确认定稿。'); return
+        if QMessageBox.question(self,'确认定稿','将当前正文确认为定稿并保留快照？后续修改不会覆盖这份快照。')!=QMessageBox.StandardButton.Yes: return
+        before=copy.deepcopy(self.document)
+        checkpoint(self.document,self.fields())
+        self.document['finalized']=dict(body=self.document['body'],at=datetime.now().isoformat())
+        if self.persist():
+            self.sync_stage(); self.status.setText('定稿已加密保存；可用“AI总结本章”生成摘要，采纳后加入作品记忆。')
+        else:
+            self.document.clear(); self.document.update(before)
 
     def focus_mode(self):
         self.focused=not self.focused
@@ -353,6 +456,7 @@ class NovelWindow(MainWindow):
                 data=(self.doc_kind,self.document['id']) if self.doc_kind!='book' else ('book','premise' if self.editor_tabs.currentIndex()==1 else 'outline')
                 if data in self.nav_items: self.nav.setCurrentItem(self.nav_items[data])
         self.nav.blockSignals(False)
+        self.sync_stage()
 
     def select_nav(self):
         if not self.ready: return
@@ -367,7 +471,7 @@ class NovelWindow(MainWindow):
             doc=next((d for d in self.book['chapters' if kind=='chapter' else 'lore'] if d['id']==identity),None)
             if doc: self.show_document(kind,doc)
         # Selecting a document never changes the active conversation or its references.
-        self.remember_view(); self.persist()
+        self.adapt_workspace(); self.remember_view(); self.persist()
 
     def navigation_menu(self,point):
         item=self.nav.itemAt(point)
@@ -412,6 +516,7 @@ class NovelWindow(MainWindow):
         self.editor_tabs.setCurrentIndex(tab if tab is not None else position.get('tab',0))
         self.editor_stack.setCurrentIndex(0); self.breadcrumb.setText((self.book['title']+' / ' if self.book else '')+('章节' if kind=='chapter' else '作品资料'))
         self.showing_document=False; self.refresh_ai_actions(); self.update_count(); self.update_selection_actions()
+        self.sync_stage()
         if self.current: self.use_current.setEnabled(kind=='chapter')
 
     def show_collection(self,kind):
@@ -426,6 +531,7 @@ class NovelWindow(MainWindow):
         for record in entries:
             item=QListWidgetItem(self.user.redact(record['title'])); item.setData(Qt.ItemDataRole.UserRole,record['id']); self.collection_items.addItem(item)
         self.refresh_ai_actions(); self.update_count(); self.use_current.setEnabled(False)
+        self.sync_stage()
 
     def open_collection_item(self,item):
         identity=item.data(Qt.ItemDataRole.UserRole); kind='chapter' if self.collection_kind=='chapters' else 'lore'
@@ -435,17 +541,21 @@ class NovelWindow(MainWindow):
     def capture_document(self):
         if self.showing_document or not self.document: return True
         d=self.document; d['title']=self.user.redact(self.doc_title.text().strip()) or '未命名'
-        if self.doc_kind=='chapter': d.update(volume=self.user.redact(self.volume.text().strip()),body=self.user.redact(self.editor.toPlainText()),plan=self.user.redact(self.plan_editor.toPlainText()),summary=self.user.redact(self.summary_editor.toPlainText()))
+        if self.doc_kind=='chapter':
+            body=self.user.redact(self.editor.toPlainText()); summary=self.user.redact(self.summary_editor.toPlainText())
+            track_chapter_change(d,body,summary)
+            d.update(volume=self.user.redact(self.volume.text().strip()),body=body,plan=self.user.redact(self.plan_editor.toPlainText()),summary=summary)
         elif self.doc_kind=='book': d.update(outline=self.user.redact(self.editor.toPlainText()),premise=self.user.redact(self.plan_editor.toPlainText()),style=self.user.redact(self.summary_editor.toPlainText()))
         else: d.update(text=self.user.redact(self.editor.toPlainText()),pinned=self.pinned.isChecked())
         return True
 
     def editor_tab_changed(self,*_):
-        if self.ready and not self.showing_document: self.refresh_ai_actions(); self.update_selection_actions(); self.remember_view()
+        if self.ready and not self.showing_document: self.refresh_ai_actions(); self.update_selection_actions(); self.remember_view(); self.sync_stage()
 
     def schedule_save(self,*_):
         if not self.ready or self.showing_document: return
         self.update_count(); self.autosave.start(1500); self.schedule_context()
+        self.sync_stage()
 
     def schedule_context(self,*_):
         if self.ready and not self.pending_lock: self.context_timer.start(450)
@@ -453,7 +563,8 @@ class NovelWindow(MainWindow):
     def update_count(self):
         if not self.document: self.count.setText('支持手写、AI起草和共同修改'); return
         current=[self.editor,self.plan_editor,self.summary_editor][self.editor_tabs.currentIndex()]
-        self.count.setText('%d 字符 · 自动保存草稿 · Ctrl+S 保存'%len(current.toPlainText()))
+        stale=sum(bool(c.get('summary')) and not summary_current(c) for c in self.book['chapters']) if self.book else 0
+        self.count.setText('%d 字符 · 自动加密保存%s'%(len(current.toPlainText()),' · %d 章摘要待更新（不发送旧摘要）'%stale if stale else ' · Ctrl+S 保存'))
 
     def autosave_document(self):
         if not self.ready or self.pending_lock: return
@@ -1027,8 +1138,8 @@ class NovelWindow(MainWindow):
     def apply_appearance(self):
         if not self.ready: return
         a=self.user.state['appearance']; dark=a['theme']=='深色'
-        bg='#151b25' if dark else '#eef0ed'; paper='#202a38' if dark else '#fffefa'; ink='#e6edf5' if dark else '#263345'
-        muted='#adbacb' if dark else '#627185'; border='#3b4b60' if dark else '#d9dfe6'; selected='#344c6b' if dark else '#e7eef8'
+        bg='#202521' if dark else '#efeee8'; paper='#272e28' if dark else '#faf8f4'; ink='#e5eadd' if dark else '#29342c'
+        muted='#b3bdae' if dark else '#647264'; border='#414e42' if dark else '#dce0d5'; selected='#3b5140' if dark else '#e4ecdf'
         ui_size=a.get('ui_size',10)
         self.setStyleSheet('''QWidget {background: %s; color: %s; font-family: "Microsoft YaHei"; font-size: %dpt;}
         QWidget#paper,QWidget#assistant,QWidget#sidebar {background: %s; border-radius: 9px;}
@@ -1036,10 +1147,10 @@ class NovelWindow(MainWindow):
         QLineEdit,QPlainTextEdit,QListWidget,QTreeWidget,QComboBox,QSpinBox,QDoubleSpinBox,QTextBrowser {background: %s; border: 1px solid %s; border-radius: 5px; padding: 4px; selection-background-color: %s; selection-color: %s;}
         QLineEdit#documentTitle {font-size: 17pt; border: none; padding: 2px;}
         QPushButton,QToolButton {background: %s; border: 1px solid %s; border-radius: 5px; padding: 5px 8px;}
-        QPushButton:hover,QToolButton:hover {border-color: #7197c4;} QPushButton:checked,QPushButton#primary {background: #365b8c; color: white; border-color: #365b8c;}
+        QPushButton:hover,QToolButton:hover {border-color: #71957b;} QPushButton:checked,QPushButton#primary {background: #3e604c; color: white; border-color: #3e604c;}
         QPushButton:disabled {color: %s;} QPushButton#contextLink {border: none; text-align:left; color: %s; padding: 3px;}
         QTreeWidget {border: none;} QTreeWidget::item {padding: 7px 2px;} QTreeWidget::item:selected {background: %s; color: %s;}
-        QTabWidget::pane {border: none;} QTabBar::tab {padding: 7px 9px; border-bottom: 2px solid transparent;} QTabBar::tab:selected {border-bottom-color: #7197c4;}
+        QTabWidget::pane {border: none;} QTabBar::tab {padding: 7px 9px; border-bottom: 2px solid transparent;} QTabBar::tab:selected {border-bottom-color: #71957b;}
         QSplitter::handle {background: transparent; width: 8px;} QMenu {border: 1px solid %s;} QMenu::item {padding: 7px 16px;} QMenu::item:selected {background: %s;}
         QScrollBar:vertical {width:8px; background:transparent;} QScrollBar::handle:vertical {background:%s; min-height:24px; border-radius:4px;} QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical {height:0px;} QScrollBar::add-page:vertical,QScrollBar::sub-page:vertical {background:transparent;}
         '''%(bg,ink,ui_size,paper,muted,paper,border,selected,ink,paper,border,muted,muted,selected,ink,border,selected,border))
