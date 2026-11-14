@@ -97,7 +97,7 @@ class NovelWindow(MainWindow):
         layout=QVBoxLayout(root); layout.setContentsMargins(12,10,12,8); layout.setSpacing(8)
         top=QHBoxLayout(); top.setSpacing(8); layout.addLayout(top)
         self.nav_button=button('☰',self.toggle_navigation,top); self.nav_button.setToolTip('收起或展开作品导航')
-        brand=QLabel('墨舟'); brand.setObjectName('brand'); top.addWidget(brand)
+        brand=QLabel('墨舟'); brand.setObjectName('brand'); top.addWidget(brand); self.brand=brand
         self.books=QComboBox(); self.books.setMinimumContentsLength(10); self.books.setMaximumWidth(230)
         self.books.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         top.addWidget(self.books); self.books.currentIndexChanged.connect(self.switch_book)
@@ -109,7 +109,7 @@ class NovelWindow(MainWindow):
         export_button=QToolButton(); export_button.setText('另存为 ▾'); export_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         export_menu=QMenu(export_button)
         for text,fn in [('作品正文 · TXT / MD',self.export_manuscript),('当前讨论 · TXT / MD',lambda:self.export(False)),('最近回答 · TXT / MD',lambda:self.export(True))]: export_menu.addAction(text,fn)
-        export_button.setMenu(export_menu); top.addWidget(export_button)
+        export_button.setMenu(export_menu); top.addWidget(export_button); self.export_button=export_button
         button('设置',self.settings,top); button('锁定',self.lock,top)
         self.identity=QLabel(user.name); self.identity.setTextFormat(Qt.TextFormat.PlainText); self.identity.setObjectName('muted'); self.identity.setMaximumWidth(100); self.identity.setMinimumWidth(0); self.identity.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred); top.addWidget(self.identity)
         stages=QHBoxLayout(); stages.setSpacing(6); layout.addLayout(stages); self.stage_buttons={}
@@ -186,9 +186,9 @@ class NovelWindow(MainWindow):
         footer=QHBoxLayout(); layout.addLayout(footer)
         self.status=QLabel('就绪'); self.status.setTextFormat(Qt.TextFormat.PlainText); self.status.setObjectName('muted'); self.status.setWordWrap(True); footer.addWidget(self.status,1)
         self.run_button=button('查看生成',self.open_run,footer); self.run_button.hide()
-        self.setMinimumSize(720,500)
         available=self.screen().availableGeometry()
-        self.resize(min(1440,available.width()),min(900,available.height()))
+        self.setMinimumSize(min(720,available.width()),min(500,available.height()))
+        self.resize(min(1440,available.width()),min(900,max(self.minimumHeight(),available.height()-40)))
         self.move(available.x()+max(0,(available.width()-self.width())//2),available.y()+max(0,(available.height()-self.height())//2))
         for edit in [self.editor,self.plan_editor,self.summary_editor]: edit.textChanged.connect(self.schedule_save); edit.selectionChanged.connect(self.update_selection_actions)
         self.doc_title.textChanged.connect(self.schedule_save); self.volume.textChanged.connect(self.schedule_save); self.pinned.toggled.connect(self.schedule_save)
@@ -202,7 +202,7 @@ class NovelWindow(MainWindow):
         self.ready=True; self.refresh_books()
         last=self.ui.get('book_id'); index=self.books.findData(last); self.switch_book(index if index>=0 else 0)
         self.set_mode(self.ui.get('mode','write'),persist=False); self.apply_appearance(); self.update_title(); self.busy_controls()
-        self.sync_stage(); self.adapt_workspace()
+        self.sync_stage(); self.adapt_workspace(); self.fit_screen(self.screen())
 
     def update_title(self):
         self.setWindowTitle('墨舟 Novel Studio 0.5.0 · 验证版 · '+self.user.name)
@@ -251,7 +251,10 @@ class NovelWindow(MainWindow):
     def fit_screen(self,screen):
         if not screen: return
         bounds=screen.availableGeometry()
+        self.setMinimumSize(min(720,bounds.width()),min(500,bounds.height()))
         if self.isMaximized(): return
+        if bounds.height()<500:
+            self.chat.setMinimumHeight(100); self.input.setFixedHeight(56)
         self.resize(min(self.width(),bounds.width()),min(self.height(),bounds.height()))
         self.move(max(bounds.x(),min(self.x(),bounds.right()-self.width()+1)),max(bounds.y(),min(self.y(),bounds.bottom()-self.height()+1)))
         self.adapt_workspace()
@@ -260,6 +263,15 @@ class NovelWindow(MainWindow):
         """Qt dimensions are logical pixels, already adjusted for each screen's DPI."""
         if not hasattr(self,'assistant'): return
         narrow=self.width()<900; self.compact=narrow
+        tiny=self.width()<720
+        self.brand.setVisible(not tiny)
+        self.books.setMinimumContentsLength(5 if tiny else 10)
+        self.book_menu.setText('作品 ▾' if not tiny else '⋯')
+        self.export_button.setText('另存为 ▾' if not tiny else '另存为')
+        for key,title in [('idea','构思与设定'),('plan','故事规划'),('write','章节写作')]:
+            self.stage_buttons[key].setText({'idea':'构思','plan':'规划','write':'写作'}[key] if tiny else title)
+        self.chat.setMinimumHeight(100 if self.height()<500 else 230)
+        self.input.setFixedHeight(56 if self.height()<500 else 82)
         self.identity.setVisible(self.width()>=1100)
         self.navigation.setVisible(self.ui.get('navigation',True) and self.width()>=1050 and not self.focused)
         if self.focused: return

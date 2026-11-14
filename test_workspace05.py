@@ -38,6 +38,12 @@ class Workspace05Tests(unittest.TestCase):
         self.assertTrue(w.nav_items[('book','outline')].isHidden())
         self.assertFalse(w.nav_items[('chapter',w.document['id'])].isHidden())
 
+    def test_initial_window_fits_available_screen(self):
+        self.window.show(); self.app.processEvents()
+        bounds=self.window.screen().availableGeometry()
+        self.assertLessEqual(self.window.width(),bounds.width())
+        self.assertLessEqual(self.window.height(),bounds.height())
+
     def test_small_workspace_has_usable_modes_and_visible_composer(self):
         w=self.window; w.show()
         for width,height in [(1440,900),(1280,720),(960,640),(800,600),(720,500)]:
