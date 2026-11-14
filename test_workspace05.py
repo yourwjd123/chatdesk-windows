@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from PySide6.QtWidgets import QApplication,QMessageBox
+from PySide6.QtWidgets import QApplication,QMessageBox,QListWidget,QPushButton
 from PySide6.QtCore import QPoint
 from storage import Accounts
 from workshop import NovelWindow
@@ -84,6 +84,25 @@ class Workspace05Tests(unittest.TestCase):
         task=make_task(w.book,'总结本章',d,'chapter')
         apply_proposal(self.user.state,task,'After summary')
         self.assertTrue(summary_current(d))
+
+    def test_finalized_text_is_recoverable_from_history(self):
+        w=self.window; w.set_stage('write'); w.editor.setPlainText('Final text')
+        with patch('workshop.QMessageBox.question',return_value=QMessageBox.StandardButton.Yes): w.finalize_chapter()
+        w.editor.setPlainText('Later edits'); w.save_current()
+        def choose_final(dialog):
+            items=dialog.findChild(QListWidget); items.setCurrentRow(items.count()-1)
+            control=next(b for b in dialog.findChildren(QPushButton) if b.text()=='恢复选中版本')
+            control.click(); return dialog.result()
+        with patch('workshop.QDialog.exec',new=choose_final): w.versions()
+        self.assertEqual(w.editor.toPlainText(),'Final text')
+        self.assertTrue(any(v['data']['body']=='Later edits' for v in w.document['versions']))
+
+    def test_failed_finalization_keeps_previous_snapshot(self):
+        w=self.window; w.set_stage('write'); w.editor.setPlainText('Final text')
+        with patch('workshop.QMessageBox.question',return_value=QMessageBox.StandardButton.Yes): w.finalize_chapter()
+        w.editor.setPlainText('Later edits'); w.save_current()
+        with patch('workshop.QMessageBox.question',return_value=QMessageBox.StandardButton.Yes),patch.object(w,'persist',return_value=False): w.finalize_chapter()
+        self.assertEqual(w.document['finalized']['body'],'Final text')
 
 
 if __name__=='__main__': unittest.main()

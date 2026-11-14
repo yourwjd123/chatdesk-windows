@@ -16,7 +16,7 @@ from app import MainWindow,ChatView,Request,Settings,button,error,choose_save
 from core import atomic_write,messages_for,estimate,export_text
 from storage import default_session
 from novel import project,chapter,uid,checkpoint,restore,context_sources,assemble,exclude_message,remove_message,undo_remove,branch,candidate_branch
-from drafting import FIELDS,PROMPTS,make_task,task_input,qt_index,find_book,find_document,check_target,apply_proposal
+from drafting import FIELDS,PROMPTS,make_task,task_input,qt_index,find_book,find_document,check_target,apply_proposal,snapshot
 from workspace_dialogs import CandidateDialog
 from novel import track_chapter_change,summary_current
 
@@ -810,7 +810,7 @@ class NovelWindow(MainWindow):
         if not self.ready or not self.current: return
         scrollbar=self.chat.verticalScrollBar(); old_scroll=scrollbar.value(); at_end=old_scroll>=scrollbar.maximum()-24
         cursor=self.chat.textCursor(); selection=(cursor.anchor(),cursor.position()) if cursor.hasSelection() else None
-        dark=self.user.state['appearance']['theme']=='深色'; foreground='#e8edf5' if dark else '#253448'; muted='#9facbd' if dark else '#64748b'; user_bg='#2b3e55' if dark else '#edf2f8'
+        dark=self.user.state['appearance']['theme']=='深色'; foreground='#e5eadd' if dark else '#29342c'; muted='#b3bdae' if dark else '#647264'; user_bg='#354637' if dark else '#edf0e7'
         parts=[]; cache={}
         for index,message in enumerate(self.current['messages']):
             identity=message.setdefault('id',uid()); content=self.user.redact(message['content']); key=(identity,content)
@@ -991,16 +991,26 @@ class NovelWindow(MainWindow):
         items=QListWidget(); layout.addWidget(items)
         for version in document.get('versions',[]):
             items.addItem(datetime.fromisoformat(version['at']).astimezone().strftime('%Y-%m-%d %H:%M:%S')+' · '+version['data'].get('title','文档'))
+        final=document.get('finalized') if kind=='chapter' else None
+        final_index=items.count() if final else None
+        if final: items.addItem('已确认定稿 · '+datetime.fromisoformat(final['at']).strftime('%Y-%m-%d %H:%M:%S'))
         diff=QPlainTextEdit(); diff.setReadOnly(True); layout.addWidget(diff,1)
         def compare(index):
             if index<0: return
-            old=document['versions'][index]['data']; left='\n'.join(str(old.get(k,'')) for k in fields); right='\n'.join(str(document.get(k,'')) for k in fields)
+            old=dict(document,body=final['body']) if index==final_index else document['versions'][index]['data']
+            left='\n'.join(str(old.get(k,'')) for k in fields); right='\n'.join(str(document.get(k,'')) for k in fields)
             diff.setPlainText(''.join(difflib.unified_diff(left.splitlines(True),right.splitlines(True),fromfile='历史版本',tofile='当前草稿')))
         items.currentRowChanged.connect(compare)
         def recover():
             index=items.currentRow()
             if index<0: return
-            before=copy.deepcopy(document); restore(document,index,fields)
+            before=copy.deepcopy(document)
+            if index==final_index:
+                snapshot(document,kind)
+                track_chapter_change(document,final['body'],document['summary'])
+                document['body']=final['body']
+                document['checkpoint']={k:document.get(k,'') for k in fields}
+            else: restore(document,index,fields)
             try: self.user.save()
             except Exception: document.clear(); document.update(before); error(dialog,'版本恢复未能保存，原文未改变。'); return
             self.document=None; self.show_document(kind,document); self.refresh_nav(); self.schedule_context(); dialog.accept()

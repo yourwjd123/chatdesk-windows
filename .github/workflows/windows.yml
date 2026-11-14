@@ -40,6 +40,14 @@ jobs:
           $env:XDG_CACHE_HOME = Join-Path $runtimePath 'cache'
           & ./.venv/Scripts/python.exe -B -m unittest discover -v
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify workspace at Windows 150 percent scaling
+        shell: pwsh
+        run: |
+          $env:QT_SCALE_FACTOR = '1.5'
+          $env:TEMP = Join-Path $env:GITHUB_WORKSPACE 'runtime'
+          $env:TMP = $env:TEMP
+          & ./.venv/Scripts/python.exe -B -m unittest test_workspace05 -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Smoke test packaged novel workspace
         shell: pwsh
         run: |
