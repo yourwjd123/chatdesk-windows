@@ -1,6 +1,8 @@
 # 墨舟 Novel Studio 0.5.0 · 小说创作工作台
 
-本版为待审核构建，尚未发布。已发布版本仍为 v0.4.0；新版仅在用户明确批准后创建 Release。
+本版已获用户确认发布。Windows 构建、58 项自动测试、150% 缩放下 8 项检查及打包 EXE 启动自检均通过。
+
+[下载 Windows x64 便携版](https://github.com/yourwjd123/chatdesk-windows/releases/download/v0.5.0/Mozhou-0.5.0-Windows-x64.zip) · [发布记录](https://github.com/yourwjd123/chatdesk-windows/releases/tag/v0.5.0)
 
 完整解压到自己选择的非系统盘文件夹，保留 `_internal` 等依赖，双击 `ChatDesk.exe`；无需安装Python。升级前可在旧版创建加密备份，新版继续选择原数据根目录登录。
 
